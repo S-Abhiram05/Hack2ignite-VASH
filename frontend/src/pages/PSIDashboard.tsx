@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Lock, Zap, ShieldCheck, Database, CheckCircle2, Loader2, Link2 } from 'lucide-react';
-import axios from 'axios';
 
 const PSIDashboard = () => {
     const [loading, setLoading] = useState(false);
@@ -21,15 +20,21 @@ const PSIDashboard = () => {
             const cipherA = bankA.map(hash);
             const cipherB = bankB.map(hash);
 
-            const res = await axios.post('http://localhost:8000/api/psi/intersect', {
-                bank_a_ciphertexts: cipherA,
-                bank_b_ciphertexts: cipherB
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
+            const res = await fetch('http://localhost:8000/api/psi/intersect', {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` 
+                },
+                body: JSON.stringify({
+                    bank_a_ciphertexts: cipherA,
+                    bank_b_ciphertexts: cipherB
+                })
             });
+            const data = await res.json();
 
             setTimeout(() => {
-                setResult(res.data);
+                setResult(data);
                 setLoading(false);
             }, 1500);
         } catch (error) {
