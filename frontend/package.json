@@ -15,6 +15,7 @@
     "@studio-freight/react-lenis": "^0.0.47",
     "@tailwindcss/vite": "^4.2.0",
     "@types/three": "^0.183.1",
+    "axios": "^1.20.0",
     "clsx": "^2.1.1",
     "cursor-effects": "^1.0.18",
     "framer-motion": "^12.34.3",
