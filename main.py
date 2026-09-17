@@ -17,10 +17,10 @@ import io
 from contextlib import redirect_stdout
 import sys
 
-SECRET_KEY = "SATARK_ENTERPRISE_SCALE_KEY_2026"
+SECRET_KEY = "VASH_ENTERPRISE_SCALE_KEY_2026"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 # Strict 1-hour window for enterprise sessions
-ISSUER = "satark.neural.core"
+ISSUER = "vash.neural.core"
 
 def verify_payload_hmac(payload_dict: dict, provided_hmac: str) -> bool:
     # Remove hmac field for validation
@@ -32,7 +32,7 @@ def verify_payload_hmac(payload_dict: dict, provided_hmac: str) -> bool:
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-app = FastAPI(title="Satark Neural API")
+app = FastAPI(title="VASH Neural API")
 
 app.add_middleware(
     CORSMiddleware,
@@ -134,7 +134,7 @@ def psi_intersect(req: PSIRequest, current_institution: dict = Depends(get_curre
 
 @app.get("/")
 def health_check():
-    return {"status": "Satark API is live", "version": "1.3"}
+    return {"status": "VASH API is live", "version": "1.3"}
 
 @app.post("/api/auth/register")
 def register_institution(inst: InstitutionRegister):

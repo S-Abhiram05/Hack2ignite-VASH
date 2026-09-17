@@ -1,6 +1,6 @@
-# Satark Run Guide
+# VASH Run Guide
 
-Follow these steps to run the Satark B2B Analyst Workspace.
+Follow these steps to run the VASH B2B Analyst Workspace.
 
 ### 1. Start Infrastructure (MANDATORY)
 **Neo4j & Redis MUST be running before you proceed.**

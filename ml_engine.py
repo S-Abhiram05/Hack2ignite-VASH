@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
-class SATARK_MLEngine:
+class VASH_MLEngine:
     def __init__(self):
         # Initialize Isolation Forest
         self.model = IsolationForest(contamination=0.05, random_state=42)
@@ -45,4 +45,4 @@ def composite_risk_score(scc, if_score=0.8, cycle_score=1.0, between_score=0.2, 
     )
     return R
 
-isolation_forest_model = SATARK_MLEngine()
+isolation_forest_model = VASH_MLEngine()

@@ -10,12 +10,12 @@ from ml_engine import isolation_forest_model, composite_risk_score
 from audit_logger import write_worm_log
 
 
-SECRET_KEY = "SATARK_ENTERPRISE_SECRET_KEY_2026"
+SECRET_KEY = "VASH_ENTERPRISE_SECRET_KEY_2026"
 VELOCITY_THRESHOLD = 8
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379 
 
-app = Celery('satark_worker', broker='redis://localhost:6379/0')
+app = Celery('vash_worker', broker='redis://localhost:6379/0')
 redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=1)
 
 def verify_payload_hmac(payload: dict, secret_key: str):
@@ -32,7 +32,7 @@ def publish_alert(nodes, risk_score, pattern):
 
     alert_payload = {
         "schema_version": "1.2",
-        "alert_id": f"SAT_{int(datetime.datetime.now().timestamp())}",
+        "alert_id": f"VASH_{int(datetime.datetime.now().timestamp())}",
         "risk_score": float(risk_score),
         "flagged_nodes": nodes,
         "pattern_detected": pattern,
@@ -41,12 +41,12 @@ def publish_alert(nodes, risk_score, pattern):
     }
     
     # Write to local JSON for compliance evidence
-    with open("satark_alert_v1.2.json", "a") as f:
+    with open("vash_alert_v1.2.json", "a") as f:
         f.write(json.dumps(alert_payload) + "\n")
     
     # WORM Audit Log
     write_worm_log("THREAT_ALERT", alert_payload)
-    print(f"!!! SATARK ALERT: {pattern} | Risk: {risk_score:.2f} | Nodes: {nodes}")
+    print(f"!!! VASH ALERT: {pattern} | Risk: {risk_score:.2f} | Nodes: {nodes}")
 
 @app.task(name="tasks.process_edge")
 def process_edge(payload: dict):
