@@ -86,7 +86,7 @@ const BankLogin = () => {
 
                     <div className="flex justify-center mb-6">
                         <div className="w-20 h-20 rounded-3xl bg-[#FF4F00] shadow-xl flex items-center justify-center border border-slate-100 overflow-hidden">
-                            <span className="text-white font-black text-2xl tracking-tighter">VASH</span>
+                            <span style={{ fontFamily: "'Quattrocento', serif", letterSpacing: "4px" }} className="text-white font-bold text-2xl">VASH</span>
                         </div>
                     </div>
                 

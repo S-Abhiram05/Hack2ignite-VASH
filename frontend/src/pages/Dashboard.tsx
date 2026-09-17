@@ -370,11 +370,11 @@ const Dashboard = () => {
                     {/* Header Logo */}
                     <div className="flex items-center space-x-3 mb-10 px-2 overflow-hidden">
                         <div className="bg-[#FF4F00] px-3 py-1.5 rounded-xl shadow-lg flex-shrink-0 flex items-center justify-center">
-                            <span className="text-white font-black text-lg tracking-tighter">VASH</span>
+                            <span style={{ fontFamily: "'Quattrocento', serif", letterSpacing: "3px" }} className="text-white font-bold text-lg">VASH</span>
                         </div>
                         {sidebarOpen && (
                             <div className="transition-opacity duration-300">
-                                <h2 className="text-xl font-black tracking-tighter leading-none uppercase">VASH</h2>
+                                <h2 style={{ fontFamily: "'Quattrocento', serif", letterSpacing: "4px" }} className="text-xl font-bold leading-none uppercase text-white">VASH</h2>
                                 <p className="text-[10px] text-emerald-400 font-mono tracking-widest uppercase">Fintech Shield</p>
                             </div>
                         )}

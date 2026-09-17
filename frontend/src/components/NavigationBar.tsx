@@ -30,7 +30,10 @@ const NavigationBar = () => {
         <nav className={`fixed top-0 left-0 right-0 z-[100] transition-all duration-500 py-6 px-8 md:px-12 ${scrolled ? 'bg-white/80 backdrop-blur-2xl py-4 shadow-xl border-b border-[#006C67]/5' : 'bg-transparent'}`}>
             <div className="max-w-7xl mx-auto flex items-center justify-between">
                 <Link to="/" className="flex items-center group">
-                    <span className="text-2xl md:text-3xl font-black tracking-tighter text-[#002A24] group-hover:text-[#FF4F00] transition-colors duration-300">
+                    <span 
+                        style={{ fontFamily: "'Quattrocento', serif", letterSpacing: "4px" }} 
+                        className="text-2xl md:text-3xl font-bold text-[#FF4F00] group-hover:text-[#002A24] transition-colors duration-300"
+                    >
                         VASH
                     </span>
                 </Link>
