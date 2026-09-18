@@ -129,7 +129,7 @@ export function checkAdminPassword(password: string): boolean {
   return password === "adminpassword";
 }
 
-export function useSugrivaEngine() {
+export function useVashEngine() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [complianceTier, setComplianceTier] = useState<string>(() => localStorage.getItem("vash_user_tier") || "Tier-1 Audit");
   const [adminAccounts, setAdminAccounts] = useState<Record<string, { password: string; signature: string; complianceTier?: string }>>({
@@ -443,12 +443,12 @@ export function useSugrivaEngine() {
   };
 }
 
-export type SugrivaEngineType = ReturnType<typeof useSugrivaEngine>;
+export type VashEngineType = ReturnType<typeof useVashEngine>;
 
-const StoreContext = createContext<SugrivaEngineType | null>(null);
+const StoreContext = createContext<VashEngineType | null>(null);
 
 export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const store = useSugrivaEngine();
+  const store = useVashEngine();
   return (
     <StoreContext.Provider value={store}>
       {children}

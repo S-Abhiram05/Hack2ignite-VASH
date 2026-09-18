@@ -37,7 +37,7 @@ Unlike traditional rule-based banking filters that rely on static thresholds or 
                                                   |
                                                   v
                                 +-----------------------------------+
-                                |  Sugriva Security Operations Core |
+                                |   VASH Security Operations Core   |
                                 |  (3D Graph + 10 Security Tabs)    |
                                 +-----------------------------------+
 ```
@@ -56,7 +56,7 @@ Unlike traditional rule-based banking filters that rely on static thresholds or 
 
 ### 3. 🔐 Sarvakshan Multi-Factor & SDK Package Security
 - **Sarvakshan MFA Challenge**: 2-Step credential and 6-digit OTP verification.
-- **Sugriva PQC SDK Package Validation**: Drag & drop JSON hardware license validation (`sugriva_sdk.json`), verifying PQC signatures and hardware entropy checksums before granting administrative access.
+- **VASH PQC SDK Package Validation**: Drag & drop JSON hardware license validation (`vash_sdk.json`), verifying PQC signatures and hardware entropy checksums before granting administrative access.
 
 ### 4. 📜 Immutable WORM Audit Trail
 - **Cryptographic Merkle Linkage**: Logs all system events, quarantine actions, and analyst interventions into a Write-Once-Read-Many (WORM) audit ledger linked with SHA-256 hashes for zero tamperability.
@@ -89,5 +89,5 @@ Unlike traditional rule-based banking filters that rely on static thresholds or 
 - [x] **Real-Time Processing**: Sub-millisecond transaction ingestion via FastAPI + Celery.
 - [x] **AI & ML Integration**: Isolation Forest anomaly scoring paired with SHAP explainability.
 - [x] **Topological Graph Analysis**: 3D interactive galaxy visualizer highlighting smurfing hubs and Tarjan cycles.
-- [x] **Zero-Trust Security**: Sarvakshan MFA + Sugriva SDK PQC license verification.
+- [x] **Zero-Trust Security**: Sarvakshan MFA + VASH SDK PQC license verification.
 - [x] **Regulatory Compliance**: Immutable WORM logs and automated CERT-In SAR filing.

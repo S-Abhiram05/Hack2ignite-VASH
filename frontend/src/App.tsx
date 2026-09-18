@@ -9,18 +9,18 @@ import SmoothScroll from './components/SmoothScroll';
 import { motion, AnimatePresence } from 'framer-motion';
 
 import { StoreProvider, useStore } from './state/StoreContext';
-import { Navbar as SugrivaNavbar } from './components/Navbar';
+import { Navbar as VashNavbar } from './components/Navbar';
 import { EventQueueBanner } from './components/EventQueueBanner';
 import { PaymentRailBrowser } from './components/PaymentRailBrowser';
 import { TabWorkspace } from './components/TabWorkspace';
 import { RightRiskPanel } from './components/RightRiskPanel';
 import { PresentationEnvironment } from './components/PresentationEnvironment';
-import { Footer as SugrivaFooter } from './components/Footer';
+import { Footer as VashFooter } from './components/Footer';
 import { LoginGateway } from './components/LoginGateway';
 import PSIDashboard from './pages/PSIDashboard';
 import Dashboard from './pages/Dashboard';
 
-function SugrivaWorkspacePortal() {
+function VashWorkspacePortal() {
   const { isAuthenticated, isPresentationMode, complianceTier } = useStore();
   const [activeRail, setActiveRail] = useState<string | null>(null);
 
@@ -36,7 +36,7 @@ function SugrivaWorkspacePortal() {
 
   return (
     <div id="root" className="h-screen w-screen flex flex-col overflow-hidden bg-[#ffffff] text-[#1a1a1a]">
-      <SugrivaNavbar />
+      <VashNavbar />
       <EventQueueBanner />
       <div className="dashboard-grid flex flex-1 overflow-hidden">
         <PaymentRailBrowser activeRail={activeRail} onSelectRail={setActiveRail} />
@@ -44,7 +44,7 @@ function SugrivaWorkspacePortal() {
         <RightRiskPanel />
       </div>
       {isPresentationMode && <PresentationEnvironment />}
-      <SugrivaFooter />
+      <VashFooter />
     </div>
   );
 }
@@ -73,8 +73,8 @@ const AnimatedRoutes = () => {
           <Route path="/" element={<Home />} />
           <Route path="/about" element={<AboutUs />} />
           <Route path="/login" element={<LoginPage />} />
-          <Route path="/dashboard" element={<SugrivaWorkspacePortal />} />
-          <Route path="/bank-workspace" element={<SugrivaWorkspacePortal />} />
+          <Route path="/dashboard" element={<VashWorkspacePortal />} />
+          <Route path="/bank-workspace" element={<VashWorkspacePortal />} />
           <Route path="/psi" element={<PSIDashboard />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

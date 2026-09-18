@@ -122,7 +122,6 @@ export const LoginGateway: React.FC = () => {
         const isIdentifierValid = 
           !!parsed.sdk_identifier && (
             parsed.sdk_identifier.includes("SDK") || 
-            parsed.sdk_identifier.includes("SUGRIVA") || 
             parsed.sdk_identifier.includes("VASH")
           );
 
