@@ -247,10 +247,10 @@ Access the VASH platform at **[http://localhost:5173](http://localhost:5173)**.
 ## Authors & Team
 
 **VASH** is designed and implemented by:
-- **Vineet** — *System Architect & Backend Infrastructure*
-- **Abhiram** — *Security Lead & Cryptographic Protocol Engineer*
-- **Sakshi** — *Machine Learning & Topological Graph Analytics*
-- **Himanshu** — *Frontend Engineering & 3D Visualization Systems*
+- **Himanshu** — *System Architect & Backend Infrastructure*
+- **Veenit** — *Database and Data Structuring*
+- **Sakshi** — *Scripting and Motion*
+- **Abhiram** — *Frontend Engineering & 3D Visualization Systems*
 
 ---
 
