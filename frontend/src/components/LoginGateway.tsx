@@ -134,7 +134,6 @@ export const LoginGateway: React.FC = () => {
           writeAudit(`Local validation SDK signatures matching registered signature for VPA '${fileVpa}'.`, "SUCCESS");
 
           localStorage.setItem("vash_token", "valid_sdk_token");
-          localStorage.setItem("satark_token", "valid_sdk_token");
           localStorage.setItem("user_role", "admin");
           localStorage.setItem("vash_user_tier", accountTier);
           setRole("ADMIN");
