@@ -132,14 +132,19 @@ export function checkAdminPassword(password: string): boolean {
 export function useVashEngine() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [complianceTier, setComplianceTier] = useState<string>(() => localStorage.getItem("vash_user_tier") || "Tier-1 Audit");
-  const [adminAccounts, setAdminAccounts] = useState<Record<string, { password: string; signature: string; complianceTier?: string }>>({
-    "admin": { password: "adminpassword", signature: "VASH-PQC-SECURE-SDK-v2.0", complianceTier: "Tier-1 Audit" }
+  const [adminAccounts, setAdminAccounts] = useState<Record<string, { password: string; signature: string; complianceTier?: string; role?: "ANALYST" | "ADMIN" }>>({
+    "admin": { password: "adminpassword", signature: "3045022100a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202200deadbeef", complianceTier: "Tier-1 Audit", role: "ADMIN" },
+    "bnk-hdfc": { password: "password123", signature: "3045022100a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202200deadbeef", complianceTier: "Tier-1 Admin", role: "ADMIN" },
+    "bnk-sbi": { password: "password123", signature: "3045022100a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202200deadbeef", complianceTier: "Tier-2 Supervisor", role: "ADMIN" },
+    "bnk-icici": { password: "password123", signature: "3045022100a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202200deadbeef", complianceTier: "Standard Analyst", role: "ANALYST" },
+    "bnk-axis": { password: "password123", signature: "3045022100a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202200deadbeef", complianceTier: "Standard Analyst", role: "ANALYST" },
+    "bnk-kotak": { password: "password123", signature: "3045022100a1b2c3d4e5f60708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202200deadbeef", complianceTier: "Standard Analyst", role: "ANALYST" }
   });
 
-  const registerAdminAccount = (vpa: string, pass: string, sig: string, tier: string = "Tier-1 Audit") => {
+  const registerAdminAccount = (vpa: string, pass: string, sig: string, tier: string = "Tier-1 Audit", role: "ANALYST" | "ADMIN" = "ADMIN") => {
     setAdminAccounts(prev => ({
       ...prev,
-      [vpa]: { password: pass, signature: sig, complianceTier: tier }
+      [vpa.toLowerCase()]: { password: pass, signature: sig, complianceTier: tier, role }
     }));
   };
 
