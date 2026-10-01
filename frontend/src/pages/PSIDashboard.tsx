@@ -13,12 +13,15 @@ const PSIDashboard = () => {
         try {
             const token = localStorage.getItem('vash_token');
             const salt = "VASH_PSI_SALT_2026";
-            const hash = (t: string) => {
-                return btoa(salt + t).slice(0, 32); 
+            const hash = async (t: string) => {
+                const msgBuffer = new TextEncoder().encode(salt + t);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             };
 
-            const cipherA = bankA.map(hash);
-            const cipherB = bankB.map(hash);
+            const cipherA = await Promise.all(bankA.map(hash));
+            const cipherB = await Promise.all(bankB.map(hash));
 
             const res = await fetch('http://localhost:8000/api/psi/intersect', {
                 method: 'POST',

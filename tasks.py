@@ -10,12 +10,11 @@ from ml_engine import isolation_forest_model, composite_risk_score
 from audit_logger import write_worm_log
 
 
-SECRET_KEY = "VASH_ENTERPRISE_SECRET_KEY_2026"
-VELOCITY_THRESHOLD = 8
-REDIS_HOST = "localhost"
-REDIS_PORT = 6379 
+from config import SECRET_KEY, REDIS_HOST, REDIS_PORT
 
-app = Celery('vash_worker', broker='redis://localhost:6379/0')
+VELOCITY_THRESHOLD = 8
+
+app = Celery('vash_worker', broker=f'redis://{REDIS_HOST}:{REDIS_PORT}/0')
 redis_client = redis.StrictRedis(host=REDIS_HOST, port=REDIS_PORT, db=1)
 
 def verify_payload_hmac(payload: dict, secret_key: str):

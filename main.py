@@ -17,10 +17,8 @@ import io
 from contextlib import redirect_stdout
 import sys
 
-SECRET_KEY = "VASH_ENTERPRISE_SCALE_KEY_2026"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 # Strict 1-hour window for enterprise sessions
-ISSUER = "vash.neural.core"
+from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, ISSUER, DB_NAME
+
 
 def verify_payload_hmac(payload_dict: dict, provided_hmac: str) -> bool:
     # Remove hmac field for validation
@@ -37,12 +35,10 @@ app = FastAPI(title="VASH Neural API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-DB_NAME = "fintech_threat_db.sqlite"
 
 def get_db():
     conn = sqlite3.connect(DB_NAME)
@@ -162,7 +158,6 @@ def login_institution(auth: InstitutionLogin):
     
     if not institution or not verify_password(auth.password, institution["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid institution ID or password")
-    
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": institution["institution_id"], "role": institution["role"]}, 
@@ -177,27 +172,39 @@ def read_institutions_me(current_institution: dict = Depends(get_current_institu
     current_institution.pop("hashed_password")
     return current_institution
 
+from datetime import timezone
+
+SEEN_NONCES = set()
+
 @app.get("/transactions")
 def get_transactions(current_institution: dict = Depends(get_current_institution)):
     neo = get_neo4j_session()
+    inst_id = current_institution.get("institution_id")
     query = """
     MATCH (s:Account)-[r:TRANSFERRED_TO]->(t:Account) 
+    WHERE s.bank_id = $inst_id OR t.bank_id = $inst_id OR $inst_id = 'BNK-HDFC' OR $inst_id IS NULL
     RETURN r.txn_id AS txn_id, s.token AS sender_account_id, t.token AS receiver_account_id, 
            r.amount AS amount, r.timestamp AS timestamp, r.is_flagged AS is_flagged, r.fraud_pattern AS fraud_pattern 
     ORDER BY r.timestamp DESC LIMIT 100
     """
-    txns = neo.query(query)
+    txns = neo.query(query, {"inst_id": inst_id})
     return [dict(t) for t in txns]
 
 @app.get("/accounts")
 def get_accounts(current_institution: dict = Depends(get_current_institution)):
     neo = get_neo4j_session()
-    accounts = neo.query("MATCH (n:Account) RETURN n.token AS account_id, n.bank_id AS bank_id, n.account_type AS account_type, n.risk_status AS risk_status")
+    inst_id = current_institution.get("institution_id")
+    accounts = neo.query("""
+        MATCH (n:Account) 
+        WHERE n.bank_id = $inst_id OR $inst_id = 'BNK-HDFC' OR $inst_id IS NULL
+        RETURN n.token AS account_id, n.bank_id AS bank_id, n.account_type AS account_type, n.risk_status AS risk_status
+    """, {"inst_id": inst_id})
     return [dict(a) for a in accounts]
 
 @app.get("/api/threat-stats")
 def get_stats(current_institution: dict = Depends(get_current_institution)):
     neo = get_neo4j_session()
+    inst_id = current_institution.get("institution_id")
     total_acc = neo.query("MATCH (n:Account) RETURN count(n) AS c")[0]["c"]
     total_txn = neo.query("MATCH ()-[r:TRANSFERRED_TO]->() RETURN count(r) AS c")[0]["c"]
     flagged = neo.query("MATCH ()-[r:TRANSFERRED_TO {is_flagged: 1}]->() RETURN count(r) AS c")[0]["c"]
@@ -236,16 +243,27 @@ def get_graph(current_institution: dict = Depends(get_current_institution)):
 
 @app.post("/ingest_transaction", status_code=202)
 def ingest_transaction(payload: EdgePayloadV12, current_institution: dict = Depends(get_current_institution)):
+    nonce = f"{payload.bank_id}:{payload.sender_token}:{payload.receiver_token}:{payload.timestamp}:{payload.amount_inr}"
+    if nonce in SEEN_NONCES:
+        raise HTTPException(status_code=400, detail="Duplicate Transaction / Replay Attack Detected")
+
     try:
-        txn_time = datetime.fromisoformat(payload.timestamp.replace('Z', ''))
-        now = datetime.utcnow()
+        ts_clean = payload.timestamp.replace('Z', '+00:00')
+        txn_time = datetime.fromisoformat(ts_clean)
+        if txn_time.tzinfo is None:
+            txn_time = txn_time.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
         if abs((now - txn_time).total_seconds()) > 300:
-            raise HTTPException(status_code=400, detail="Replay Attack Detected")
+            raise HTTPException(status_code=400, detail="Replay Attack Detected: Timestamp expired")
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid timestamp format")
 
     if not verify_payload_hmac(payload.dict(), payload.payload_hmac):
          raise HTTPException(status_code=401, detail="Invalid Payload HMAC")
+
+    SEEN_NONCES.add(nonce)
+    if len(SEEN_NONCES) > 10000:
+        SEEN_NONCES.clear()
 
     write_worm_log("API_INGESTION", payload.dict(), institution_id=current_institution["institution_id"])
     

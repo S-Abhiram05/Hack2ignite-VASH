@@ -1,14 +1,12 @@
-import hashlib
-import json
+from config import PSI_SALT
 
 class PSIEngine:
     """
-    Mock Private Set Intersection (PSI) using simulated Homomorphic Encryption.
-    In a real scenario, this would use paillier or elgamal encryption.
-    For this enterprise simulation, we use salted SHA-256 to represent 'ciphertexts'.
+    Private Set Intersection (PSI) engine using salted SHA-256 cryptographic hashing.
+    Matches cross-institution ciphertexts without exposing raw identifiers.
     """
     
-    def __init__(self, salt: str = "VASH_PSI_SALT_2026"):
+    def __init__(self, salt: str = PSI_SALT):
         self.salt = salt
 
     def encrypt_set(self, tokens: list) -> list:
