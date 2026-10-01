@@ -34,10 +34,14 @@ app = FastAPI(title="VASH Neural API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://vash-virid.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 def get_db():
@@ -134,6 +138,11 @@ def health_check():
 
 @app.post("/api/auth/register")
 def register_institution(inst: InstitutionRegister):
+    if len(inst.password) < 8 or not any(c.isdigit() for c in inst.password) or not any(c.isupper() for c in inst.password):
+        raise HTTPException(status_code=400, detail="Password does not meet enterprise security requirements (min 8 chars, 1 uppercase, 1 digit)")
+    if "@" not in inst.compliance_email or "." not in inst.compliance_email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="Invalid compliance email address format")
+
     db = get_db()
     try:
         hashed_password = get_password_hash(inst.password)
@@ -164,7 +173,7 @@ def login_institution(auth: InstitutionLogin):
         expires_delta=access_token_expires
     )
     
-    write_worm_log("LOGIN_SUCCESS", {"role": institution["role"], "mfa_verified": True}, institution_id=institution["institution_id"])
+    write_worm_log("LOGIN_SUCCESS", {"role": institution["role"], "mfa_verified": False, "auth_stage": "PRIMARY_PASSWORD_PASSED"}, institution_id=institution["institution_id"])
     return {"access_token": access_token, "token_type": "bearer", "role": institution["role"]}
 
 @app.get("/api/auth/me")
@@ -182,7 +191,7 @@ def get_transactions(current_institution: dict = Depends(get_current_institution
     inst_id = current_institution.get("institution_id")
     query = """
     MATCH (s:Account)-[r:TRANSFERRED_TO]->(t:Account) 
-    WHERE s.bank_id = $inst_id OR t.bank_id = $inst_id OR $inst_id = 'BNK-HDFC' OR $inst_id IS NULL
+    WHERE s.bank_id = $inst_id OR t.bank_id = $inst_id OR $inst_id IS NULL
     RETURN r.txn_id AS txn_id, s.token AS sender_account_id, t.token AS receiver_account_id, 
            r.amount AS amount, r.timestamp AS timestamp, r.is_flagged AS is_flagged, r.fraud_pattern AS fraud_pattern 
     ORDER BY r.timestamp DESC LIMIT 100
@@ -196,7 +205,7 @@ def get_accounts(current_institution: dict = Depends(get_current_institution)):
     inst_id = current_institution.get("institution_id")
     accounts = neo.query("""
         MATCH (n:Account) 
-        WHERE n.bank_id = $inst_id OR $inst_id = 'BNK-HDFC' OR $inst_id IS NULL
+        WHERE n.bank_id = $inst_id OR $inst_id IS NULL
         RETURN n.token AS account_id, n.bank_id AS bank_id, n.account_type AS account_type, n.risk_status AS risk_status
     """, {"inst_id": inst_id})
     return [dict(a) for a in accounts]
@@ -205,10 +214,10 @@ def get_accounts(current_institution: dict = Depends(get_current_institution)):
 def get_stats(current_institution: dict = Depends(get_current_institution)):
     neo = get_neo4j_session()
     inst_id = current_institution.get("institution_id")
-    total_acc = neo.query("MATCH (n:Account) RETURN count(n) AS c")[0]["c"]
-    total_txn = neo.query("MATCH ()-[r:TRANSFERRED_TO]->() RETURN count(r) AS c")[0]["c"]
-    flagged = neo.query("MATCH ()-[r:TRANSFERRED_TO {is_flagged: 1}]->() RETURN count(r) AS c")[0]["c"]
-    frozen = neo.query("MATCH ()-[r:TRANSFERRED_TO {is_flagged: 1}]->() RETURN sum(r.amount) AS c")[0]["c"] or 0
+    total_acc = neo.query("MATCH (n:Account) WHERE n.bank_id = $inst_id OR $inst_id IS NULL RETURN count(n) AS c", {"inst_id": inst_id})[0]["c"]
+    total_txn = neo.query("MATCH (s:Account)-[r:TRANSFERRED_TO]->() WHERE s.bank_id = $inst_id OR $inst_id IS NULL RETURN count(r) AS c", {"inst_id": inst_id})[0]["c"]
+    flagged = neo.query("MATCH (s:Account)-[r:TRANSFERRED_TO {is_flagged: 1}]->() WHERE s.bank_id = $inst_id OR $inst_id IS NULL RETURN count(r) AS c", {"inst_id": inst_id})[0]["c"]
+    frozen = neo.query("MATCH (s:Account)-[r:TRANSFERRED_TO {is_flagged: 1}]->() WHERE s.bank_id = $inst_id OR $inst_id IS NULL RETURN sum(r.amount) AS c", {"inst_id": inst_id})[0]["c"] or 0
     return {
         "total_accounts": total_acc,
         "total_transactions": total_txn,
@@ -219,19 +228,21 @@ def get_stats(current_institution: dict = Depends(get_current_institution)):
 @app.get("/api/graph")
 def get_graph(current_institution: dict = Depends(get_current_institution)):
     neo = get_neo4j_session()
+    inst_id = current_institution.get("institution_id")
     query = """
     MATCH (f:Account {risk_status: 'FLAGGED'})
+    WHERE f.bank_id = $inst_id OR $inst_id IS NULL
     OPTIONAL MATCH (f)-[r:TRANSFERRED_TO]-(neighbor:Account)
     WITH f, r, neighbor
     RETURN collect(DISTINCT f) + collect(DISTINCT neighbor) AS nodes, 
            collect(DISTINCT r) AS links
     """
-    res = neo.query(query)[0]
+    res = neo.query(query, {"inst_id": inst_id})[0]
     
     nodes = [{"id": n["token"], "risk_status": n["risk_status"], "is_flagged": n["risk_status"] == "FLAGGED"} for n in res["nodes"]]
     links = [{"source": l.start_node["token"], "target": l.end_node["token"], "amount": l["amount"], "is_flagged": l["is_flagged"]} for l in res["links"]]
     
-    total_acc = neo.query("MATCH (n:Account) RETURN count(n) AS c")[0]["c"]
+    total_acc = neo.query("MATCH (n:Account) WHERE n.bank_id = $inst_id OR $inst_id IS NULL RETURN count(n) AS c", {"inst_id": inst_id})[0]["c"]
     return {
         "nodes": nodes, 
         "links": links, 
