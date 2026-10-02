@@ -4,7 +4,7 @@
 > **Repository**: [Hack2ignite-VASH](https://github.com/S-Abhiram05/Hack2ignite-VASH)  
 > **Authors**: Vineet · Abhiram · Sakshi · Himanshu  
 > **Document Status**: Production Architecture Specification  
-> **Version**: 2.0 (Fully Hardened & Synchronized)
+> **Version**: 2.2 (Fully Hardened, Multi-Tenant Scoped & Vercel SPA Ready)
 
 ---
 
@@ -15,7 +15,7 @@
 VASH operates on a **Federated Dual-Engine Architecture** that combines:
 1. **Unsupervised Machine Learning**: Isolation Forest anomaly scoring paired with SHAP (SHapley Additive exPlanations) feature attributions.
 2. **Topological Graph Analytics**: Neo4j property graph engine coupled with Tarjan's $O(V+E)$ Strongly Connected Components (SCC) cycle detection algorithm.
-3. **Cryptographic Zero-Trust Gateway**: 3-Stage authentication gate (Credentials $\rightarrow$ MFA OTP $\rightarrow$ Hardware-Signed PQC SDK Package Verification).
+3. **Cryptographic Zero-Trust Gateway**: 3-Stage authentication gate (Credentials $\rightarrow$ Server-Verified 6-digit MFA OTP Challenge $\rightarrow$ Hardware-Signed PQC SDK Package Verification).
 4. **Private Set Intersection (PSI)**: Salted SHA-256 multi-party dataset intersection for cross-institutional threat sharing without exposing raw account identifiers.
 5. **Immutable Chained WORM Ledger**: Append-only audit logger using canonical JSON formatting and SHA-256 Merkle-like hash chaining (`prev_hash` $\rightarrow$ `curr_hash`).
 
@@ -33,9 +33,10 @@ VASH operates on a **Federated Dual-Engine Architecture** that combines:
 +---------------------------------------------------------------------------------------------------+
 |                                  VASH NEURAL API INGESTION GATEWAY                                |
 |                                             (main.py)                                             |
-|   - CORS Origin Restrictions                     - Timezone UTC Normalization & 300s Expire      |
-|   - HMAC-SHA256 Payload Integrity Verification    - Nonce Deduplication Cache (SEEN_NONCES)       |
-|   - OAuth2 Bearer Token Validation                - Strict Tenant Authorization Scoping           |
+|   - CORS Allowed Origin Restrictions              - Timezone UTC Normalization & 300s Window      |
+|   - HMAC-SHA256 Payload Verification              - Nonce Deduplication Cache (SEEN_NONCES)       |
+|   - OAuth2 Bearer Token Validation                - Strict Tenant Scoping & Bank ID Binding       |
+|   - Server-Side MFA Route (/api/auth/mfa-verify)  - SPA Rewrites Configured in vercel.json       |
 +---------------------------------------------------------------------------------------------------+
                                                   |
                                                   v
@@ -54,7 +55,7 @@ VASH operates on a **Federated Dual-Engine Architecture** that combines:
 |          (ml_engine.py)          | |    (database.py / NetworkX)    | |        (psi_engine.py)         |
 | - Unsupervised Anomaly Scoring   | | - Tarjan's $O(V+E)$ SCC Cycles  | | - Salted SHA-256 Token Cipher  |
 | - SHAP Feature Attributions      | | - Smurfing Hub Fan-Out           | | - Cross-Bank Private Set Inter- |
-| - Composite Score R Calculation  | | - Velocity Spike Detection       | |   section without PII Leakage  |
+| - Composite Score R Calculation  | | - Neighbor Scoped Cypher Filter  | |   section without PII Leakage  |
 +----------------------------------+ +----------------------------------+ +----------------------------------+
                  |                                |                                |
                  +--------------------------------+--------------------------------+
@@ -90,7 +91,8 @@ VASH operates on a **Federated Dual-Engine Architecture** that combines:
 - **CORS Protection**: Restricted `allow_origins` to explicitly trusted frontend domains (`http://localhost:5173`, `http://127.0.0.1:5173`, `https://vash-virid.vercel.app`) with allowed methods `["GET", "POST", "OPTIONS"]`.
 - **HMAC Verification**: Validates `payload_hmac` against canonical JSON payload data using `hmac.new(SECRET_KEY, ..., sha256)`.
 - **Replay Protection**: Normalizes incoming timestamps to UTC ISO format, rejects timestamps outside a 300-second window, and enforces unique nonces (`bank_id:sender:receiver:timestamp:amount`) via `SEEN_NONCES`.
-- **Tenant Scoping**: All database queries (`/transactions`, `/accounts`, `/api/threat-stats`, `/api/graph`) require valid OAuth2 bearer tokens and scope Neo4j Cypher queries strictly by the caller's `bank_id`.
+- **Server-Side MFA Verification Route (`/api/auth/mfa-verify`)**: Issues pre-MFA tokens during password auth (`/api/auth/login`) and grants fully verified JWT tokens only after MFA challenge verification.
+- **Strict Tenant Isolation**: All database routes (`/transactions`, `/accounts`, `/api/threat-stats`, `/api/graph`) scope Cypher query matching and neighbor nodes strictly by the caller's `bank_id`.
 
 ### 3.3 Asynchronous Execution Engine (`tasks.py`, Redis, Celery)
 - **Celery Worker**: Distributed task `tasks.process_edge` running over Redis broker (`redis://localhost:6379/0`).
@@ -109,7 +111,7 @@ VASH operates on a **Federated Dual-Engine Architecture** that combines:
 - **Smurfing Hub Detection**: Detects high-fan-out accounts funneling small-value transactions into aggregated destination accounts.
 
 ### 3.6 Private Set Intersection (PSI) Engine (`psi_engine.py`)
-- **Multi-Party Computation Simulation**: Uses salted SHA-256 hashing to convert raw tokens into ciphertexts.
+- **Multi-Party Computation Protocol**: Uses salted SHA-256 token hashing with explicit `hashlib` imports to convert raw tokens into ciphertexts.
 - **Set Intersection**: Computes `set(bank_a).intersection(set(bank_b))` to identify common compromised accounts across institutions without exposing non-matching records.
 
 ### 3.7 Immutable Chained WORM Ledger (`audit_logger.py`)
@@ -120,20 +122,11 @@ VASH operates on a **Federated Dual-Engine Architecture** that combines:
   - `curr_hash`: SHA-256 of `f"{timestamp}|{institution_id}|{event_type}|{payload_hash}|{prev_hash}"`.
 - **WORM Storage**: Appends to `vash_audit_worm.log`, producing a tamper-evident Merkle hash chain.
 
-### 3.8 SOC Analyst Workspace Portal (`frontend/src/`)
+### 3.8 SOC Analyst Workspace Portal (`frontend/src/`) & Vercel Deployment
 - **3D Galaxy Visualizer**: Built with Three.js and `react-force-graph-3d`, displaying node risk statuses (`FLAGGED`, `ELEVATED`, `CLEAN`) with interactive camera controls.
-- **10 Operations Tabs**:
-  1. `SystemGraphTab`: 3D network graph & topology metrics.
-  2. `AllAttacksTab`: Comprehensive attack stream & risk rankings.
-  3. `AuditIncidentTab`: Chained WORM log viewer & CERT-In SAR filing portal.
-  4. `AuthMonitorTab`: Zero-trust token status & authentication event log.
-  5. `CryptoTab`: HMAC signature inspector & AES envelope encryption logs.
-  6. `DatabaseTab`: Multi-field database query builder & node search.
-  7. `MitreAttackTab`: Interactive MITRE ATT&CK framework matrix.
-  8. `QuantumTab`: QKD coherence monitoring & PQC status metrics.
-  9. `SecurityMeshTab`: Node health checks & active quarantine controls.
-  10. `TelemetryTab`: Multi-channel payment stream browser (UPI, NEFT, SWIFT, Card).
-- **Authentication Gateway (`LoginGateway.tsx`)**: 3-Stage security flow (Credentials $\rightarrow$ MFA OTP $\rightarrow$ PQC SDK License Check), verifying `owner_vpa` matching, license signatures, and assigned RBAC roles (`ADMIN` vs `ANALYST`).
+- **10 Operations Tabs**: `SystemGraphTab`, `AllAttacksTab`, `AuditIncidentTab`, `AuthMonitorTab`, `CryptoTab`, `DatabaseTab`, `MitreAttackTab`, `QuantumTab`, `SecurityMeshTab`, `TelemetryTab`.
+- **Authentication Gateway (`LoginGateway.tsx`)**: 3-Stage security flow integrated with server-side `/api/auth/mfa-verify`, enforcing `owner_vpa` matching, license signatures, and assigned RBAC roles (`ADMIN` vs `ANALYST`).
+- **Vercel SPA Rewrites (`vercel.json`)**: Configured with wildcard rewrites (`/ (.*) -> /index.html`), ensuring direct URL navigation (`/login`, `/dashboard`) works seamlessly without 404 errors.
 
 ---
 
@@ -158,7 +151,7 @@ sequenceDiagram
     
     TaskQueue->>TaskQueue: Verify Payload HMAC using shared SECRET_KEY
     TaskQueue->>MLGraph: Run Isolation Forest Anomaly Scoring & Feature Attributions
-    TaskQueue->>Neo4jDB: Upsert Nodes & Edge (:TRANSFERRED_TO)
+    TaskQueue->>Neo4jDB: Upsert Nodes with bank_id & Edge (:TRANSFERRED_TO)
     TaskQueue->>MLGraph: Run Tarjan SCC Algorithm & Calculate Composite Score R
     
     alt Risk Score R >= 0.75
@@ -169,7 +162,7 @@ sequenceDiagram
     Frontend->>API: GET /api/graph (Bearer JWT)
     API->>API: Authenticate Institution & Scope Cypher Query by bank_id
     API->>Neo4jDB: MATCH (f:Account {risk_status: 'FLAGGED'}) WHERE f.bank_id = $bank_id ...
-    Neo4jDB-->>API: Return Scoped Graph Nodes & Links
+    Neo4jDB-->>API: Return Scoped Graph Nodes & Scoped Neighbor Links
     API-->>Frontend: 200 OK {"nodes": [...], "links": [...]}
     Frontend->>Frontend: Render 3D Galaxy Graph Topology & SHAP Risk Attributions
 ```
@@ -184,4 +177,4 @@ sequenceDiagram
 | **Task Queue** | Celery 5.x, Redis 7.x | 2 vCPU, 4 GB RAM | 4 vCPU, 8 GB RAM (Redis Sentinel/Cluster) |
 | **Graph DB** | Neo4j 5.x Enterprise / Community | 4 vCPU, 8 GB RAM | 16 vCPU, 32 GB RAM (Heap/Pagecache optimized) |
 | **Relational DB**| SQLite 3 (WAL Mode) | 1 vCPU, 2 GB RAM | 4 vCPU, 8 GB RAM (PostgreSQL 15+ in production) |
-| **Frontend** | Node.js 18+, React 18, Vite | 1 vCPU, 2 GB RAM | CDN Edge Hosting (Vercel, Cloudflare Pages) |
+| **Frontend** | Node.js 18+, React 18, Vite | 1 vCPU, 2 GB RAM | CDN Edge Hosting (Vercel with SPA Rewrites) |

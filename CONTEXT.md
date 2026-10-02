@@ -4,7 +4,8 @@
 > **Repository**: [Hack2ignite-VASH](https://github.com/S-Abhiram05/Hack2ignite-VASH)  
 > **Secondary Remote**: [VASH](https://github.com/himanshu-anonymous/VASH)  
 > **Creators**: Vineet (Database Architecture) · Abhiram (Frontend & 3D UI) · Sakshi (Motion Design) · Himanshu (System Architecture & ML Engines)  
-> **Document Purpose**: Master Technical Context, Complete Codebase Blueprint & Execution Guide
+> **Document Purpose**: Master Technical Context, Complete Codebase Blueprint & Execution Guide  
+> **Version**: 2.2 (Fully Hardened, Multi-Tenant Scoped & Vercel SPA Ready)
 
 ---
 
@@ -13,13 +14,14 @@
 **VASH** is an enterprise-scale, real-time transaction control and threat detection architecture designed for modern multi-bank financial ecosystems. It provides automated detection and disruption of sophisticated financial fraud topologies—including smurfing hubs, circular money laundering cycles, and velocity bursts—operating across high-volume payment rails (UPI, NEFT, RTGS, SWIFT, Visa, Mastercard).
 
 ### 1.1 Core System Capabilities
-1. **Real-Time Payload Ingestion**: Sub-millisecond transaction ingestion via FastAPI with HMAC-SHA256 payload verification and 300-second replay attack protection.
+1. **Real-Time Payload Ingestion**: Sub-millisecond transaction ingestion via FastAPI with HMAC-SHA256 payload verification, UTC timestamp window (300s), and nonce deduplication (`SEEN_NONCES`).
 2. **AI-Driven Anomaly Detection**: Unsupervised Isolation Forest model combined with SHAP (SHapley Additive exPlanations) for explainable AI risk attributions.
 3. **Topological Graph Analysis**: Neo4j property graph database paired with Tarjan's $O(V+E)$ Strongly Connected Components (SCC) algorithm for detecting circular money laundering rings.
-4. **Zero-Trust Administrative Gateway**: 3-stage authentication flow (Credentials $\rightarrow$ 6-digit MFA OTP challenge $\rightarrow$ Hardware-signed PQC SDK license package verification).
-5. **Private Set Intersection (PSI)**: Multi-party computation simulation using salted SHA-256 Web Crypto and Python engines to intersect suspect account sets across institutions without exposing non-matching identifiers.
+4. **Zero-Trust Administrative Gateway**: 3-stage authentication flow (Credentials $\rightarrow$ Server-side 6-digit MFA OTP Challenge `/api/auth/mfa-verify` $\rightarrow$ Hardware-signed PQC SDK license package verification).
+5. **Private Set Intersection (PSI)**: Multi-party computation simulation using salted SHA-256 Web Crypto and Python engines (with explicit `hashlib` imports) to intersect suspect account sets across institutions without exposing non-matching identifiers.
 6. **Immutable Cryptographic WORM Audit Log**: Tamper-evident append-only log ledger (`vash_audit_worm.log`) using canonical JSON serialization and SHA-256 Merkle-like hash chaining (`prev_hash` $\rightarrow$ `curr_hash`).
 7. **3D Interactive Galaxy Topology SOC**: High-performance glassmorphic React 18 dashboard utilizing Three.js and `react-force-graph-3d` with 10 dedicated security operations tabs and dynamic risk attribution panels.
+8. **Vercel Deployment & SPA Routing**: Production frontend configured with `vercel.json` SPA rewrites (`/ (.*) -> /index.html`) eliminating 404 errors on direct route access.
 
 ---
 
@@ -34,6 +36,7 @@ d:\program01\satark\
 ├── README.md                         # Project introduction and quick-start summary
 ├── RUN_GUIDE.md                      # Step-by-step setup and execution instructions
 ├── SYSTEMDESIGN.md                   # System design patterns and structural specifications
+├── VASH-security-recheck-2026-10-02.md# Security recheck audit findings and remediation log
 ├── VASH_PROJECT_DOCUMENTATION.md    # Detailed project documentation and capabilities overview
 ├── audit_logger.py                   # Immutable WORM audit logger with SHA-256 hash chaining
 ├── audit.py                          # Independent WORM log verification utility
@@ -56,7 +59,7 @@ d:\program01\satark\
 ├── tasks.py                          # Celery async worker tasks & Redis velocity ledger
 ├── test_login.py                     # Integration test script for login authentication
 ├── vash_sdk.json                     # Standard administrative PQC SDK license file
-├── vercel.json                       # Deployment configuration for Vercel
+├── vercel.json                       # Deployment configuration for Vercel with SPA rewrites
 ├── verify_psi.py                     # Verification script for PSI set intersection
 └── frontend/                         # React 18 / Vite / TypeScript Frontend Application
     ├── eslint.config.js              # ESLint 9 configuration with custom rule overrides
@@ -106,7 +109,7 @@ d:\program01\satark\
 ## 3. Detailed Component & Source Code Reference
 
 ### 3.1 Central Configuration (`config.py`)
-- **Purpose**: Resolves all global secrets and environment settings for both backend API (`main.py`) and background workers (`tasks.py`).
+- **Purpose**: Resolves global secrets and environment settings for both backend API (`main.py`) and background workers (`tasks.py`).
 - **Key Logic**:
   - `SECRET_KEY`: Reads `os.environ.get("VASH_SECRET_KEY")`. If absent, generates a secure random 256-bit hex key (`secrets.token_hex(32)`).
   - `PSI_SALT`: Reads `os.environ.get("VASH_PSI_SALT")`. If absent, generates a secure random 256-bit hex salt (`secrets.token_hex(32)`).
@@ -117,17 +120,18 @@ d:\program01\satark\
   - `REDIS_HOST` & `REDIS_PORT`: Defaults to `localhost:6379`.
 
 ### 3.2 FastAPI Ingress Server (`main.py`)
-- **Purpose**: Main REST API gateway handling authentication, payment transaction ingestion, tenant-scoped queries, and PSI set intersection.
+- **Purpose**: REST API gateway handling authentication, payment transaction ingestion, tenant-scoped queries, and PSI set intersection.
 - **Key Endpoints**:
   - `GET /`: Health check returning `{"status": "VASH API is live", "version": "1.3"}`.
-  - `POST /api/auth/register`: Institution registration with password complexity enforcement (min 8 chars, 1 uppercase, 1 digit) and email validation.
-  - `POST /api/auth/login`: Institution login with bcrypt password verification, returning a JWT bearer token signed with `SECRET_KEY`.
+  - `POST /api/auth/register`: Institution registration with password complexity enforcement (min 8 chars, 1 uppercase, 1 digit) and email format validation.
+  - `POST /api/auth/login`: Institution login with bcrypt password verification, returning a pre-MFA JWT bearer token signed with `SECRET_KEY`.
+  - `POST /api/auth/mfa-verify`: Server-side MFA challenge verification endpoint issuing the final MFA-verified JWT token (`mfa_verified: True`).
   - `GET /api/auth/me`: Authenticated endpoint returning current institution profile.
-  - `POST /ingest_transaction`: Transaction ingestion endpoint verifying payload HMAC-SHA256, UTC timestamp window (300s), and nonce uniqueness (`SEEN_NONCES`). Dispatches `tasks.process_edge.delay(payload)`.
+  - `POST /ingest_transaction`: Transaction ingestion endpoint verifying payload HMAC-SHA256, UTC timestamp window (300s), nonce uniqueness (`SEEN_NONCES`), and institution bank ID binding. Dispatches `tasks.process_edge.delay(payload)`.
   - `GET /transactions`: Retrieves recent transactions scoped strictly by the authenticated institution's `bank_id`.
   - `GET /accounts`: Retrieves account nodes scoped by `bank_id`.
   - `GET /api/threat-stats`: Returns tenant-scoped total accounts, transactions, blocked networks, and frozen suspicious capital.
-  - `GET /api/graph`: Returns tenant-scoped flagged graph nodes and links for 3D rendering.
+  - `GET /api/graph`: Returns tenant-scoped flagged graph nodes and neighbor links (`WHERE neighbor.bank_id = $inst_id OR $inst_id IS NULL`).
   - `POST /api/psi/intersect`: Executes Private Set Intersection on provided ciphertexts and records WORM log.
 
 ### 3.3 Background Task Worker (`tasks.py`)
@@ -149,14 +153,14 @@ d:\program01\satark\
 ### 3.5 Machine Learning & Explainable AI (`ml_engine.py`)
 - **Purpose**: Calculates unsupervised anomaly scores and SHAP feature attributions.
 - **Key Logic**:
-  - `IsolationForest`: Scikit-learn model evaluated over transaction feature vectors $X = [\text{IP\_Val}, \text{Auth\_Val}, \text{Amount}, \text{Velocity}]$.
+  - `IsolationForest`: Scikit-learn model evaluated over transaction feature vectors $X = [\text{source\_ip\_anomaly}, \text{auth\_status\_val}, \text{amount}, \text{velocity}]$.
   - `composite_risk_score`: Combines Isolation Forest score, graph cycle presence, node betweenness, cross-bank transfers, velocity, and time anomalies into unified score $R \in [0.0, 1.0]$.
   - `explain_transaction_risk`: Returns explicit feature contribution breakdown (e.g. `velocity_impact: 0.45`, `ip_anomaly: 0.30`).
 
 ### 3.6 Private Set Intersection Engine (`psi_engine.py`)
 - **Purpose**: Performs multi-party dataset intersection using salted SHA-256 token hashing.
 - **Key Logic**:
-  - `PSIEngine`: Encrypts sets using `sha256((PSI_SALT + str(token)).encode())`.
+  - `PSIEngine`: Uses explicit `import hashlib` to encrypt sets via `sha256((PSI_SALT + str(token)).encode('utf-8'))`.
   - `intersect`: Calculates `set(bank_a).intersection(set(bank_b))`, returning matching ciphertexts without revealing raw account numbers.
 
 ### 3.7 Database Connection Pool (`database.py`)
@@ -173,12 +177,12 @@ d:\program01\satark\
   - Generates 5,000 Zero-PII account tokens using HMAC-SHA256.
   - Injects precise fraud topologies: Smurfing Hubs, Tarjan SCC Rings, and Velocity Bursts.
 
-### 3.9 Dynamic Fraud Injector (`inject_demo_anomaly.py`)
-- **Purpose**: Programmatically injects multi-pattern fraud topology scenarios into running system for live demonstration.
-- **Injected Scenarios**:
-  - **Smurfing Hub**: 21 nodes funneling micro-amounts into an aggregator account.
-  - **Tarjan SCC Cycle**: 10-node circular money laundering ring ($A \rightarrow B \rightarrow C \dots \rightarrow A$).
-  - **Velocity Burst**: Single sender dispatching 15 rapid transactions within milliseconds.
+### 3.9 Vercel Deployment Config (`vercel.json`)
+- **Purpose**: Multi-environment build and SPA routing configuration for Vercel.
+- **Key Logic**:
+  - `buildCommand`: `cd frontend && npm install && npm run build`.
+  - `outputDirectory`: `frontend/dist`.
+  - `rewrites`: `[{"source": "/(.*)", "destination": "/index.html"}]` ensuring direct route access (`/login`, `/dashboard`) works seamlessly.
 
 ---
 
@@ -195,92 +199,38 @@ d:\program01\satark\
   - `auditLogs`: Immutable WORM audit trail log entries.
   - `incidents`: CERT-In filed incident reports.
   - `isPresentationMode`: Toggle for guided presentation walkthrough.
-  - `presentationStep`: Current step in presentation mode (1 through 6).
 
 ### 4.2 Zero-Trust Authentication Gateway (`frontend/src/components/LoginGateway.tsx`)
 - **Purpose**: 3-Stage authentication modal enforcing administrative login controls.
 - **3-Stage Workflow**:
   1. **Stage 1 — Credentials**: VPA ID and Password check against registered `adminAccounts` or backend API (`/api/auth/login`).
-  2. **Stage 2 — MFA OTP**: 6-digit challenge code verification with audit log entry.
+  2. **Stage 2 — MFA OTP**: 6-digit challenge code verification calling `/api/auth/mfa-verify`.
   3. **Stage 3 — SDK Package Upload**: Drag & drop JSON license verification (`vash_sdk.json`).
 - **Security Controls**:
   - **Owner Matching**: Verifies `parsed.owner_vpa` matches authenticating user (`vpaId`). Rejects mismatched packages.
   - **Cryptographic Signature Matching**: Verifies `parsed.license_signature` or `parsed.signature` against registered account signature.
   - **RBAC Privilege Assignment**: Sets `user_role` to assigned account role (`ADMIN` vs `ANALYST`) from database record.
 
-### 4.3 3D SOC Analyst Dashboard (`frontend/src/pages/Dashboard.tsx`)
-- **Purpose**: Primary security operations workspace.
-- **Key Features**:
-  - **3D Interactive Galaxy Topology**: Rendered using Three.js and `react-force-graph-3d`, displaying nodes colored by risk status (Red = FLAGGED, Orange = ELEVATED, Cyan = CLEAN).
-  - **Dynamic SHAP Risk Panel**: Right-side panel showing transaction risk gauge, SHAP feature attribution bars, node metadata, and manual quarantine/unfreeze controls.
-  - **Tab Navigator**: Switches between 10 specialized Security Operations tabs.
-
-### 4.4 10 Security Operations Tabs (`frontend/src/tabs/`)
-1. **`SystemGraphTab`**: 3D network topology visualization, gravitational controls, and graph density metrics.
-2. **`AllAttacksTab`**: Comprehensive attack matrix, real-time threat feed, and risk-ranked account list.
-3. **`AuditIncidentTab`**: Cryptographic WORM audit trail inspector with SHA-256 hash chain verification & CERT-In SAR dispatcher.
-4. **`AuthMonitorTab`**: Zero-trust authentication logs, active token status, and MFA challenge history.
-5. **`CryptoTab`**: HMAC signature inspector, AES-256 envelope status, and key rotation metrics.
-6. **`DatabaseTab`**: Multi-field SQL/Graph search builder for exploring accounts and transaction records.
-7. **`MitreAttackTab`**: Interactive mapping of detected fraud techniques to MITRE ATT&CK framework tactics.
-8. **`QuantumTab`**: Post-Quantum Cryptography status, Dilithium3 signature checks, and QKD coherence metrics.
-9. **`SecurityMeshTab`**: Node health monitors, active quarantine controls, and circuit breaker status.
-10. **`TelemetryTab`**: Multi-channel payment stream browser for UPI, NEFT, RTGS, Visa, Mastercard, and SWIFT.
-
 ---
 
 ## 5. Algorithmic Formulations & Mathematics
 
 ### 5.1 Isolation Forest Anomaly Scoring
-The Isolation Forest isolates anomalies by randomly selecting a feature and splitting value. The anomaly score $s(x, n)$ for an instance $x$ given dataset size $n$ is defined as:
+The Isolation Forest isolates anomalies by randomly selecting a feature and splitting value:
 $$s(x, n) = 2^{-\frac{E(h(x))}{c(n)}}$$
-Where:
-- $h(x)$ is the path length of instance $x$ in an isolation tree.
-- $E(h(x))$ is the average path length across a collection of isolation trees.
-- $c(n) = 2 \ln(n - 1) + 0.5772156649 - \frac{2(n - 1)}{n}$ is the average path length of unsuccessful searches in a Binary Search Tree.
 
 ### 5.2 Composite Risk Score Equation
-The unified transaction risk score $R$ is calculated as:
-$$R = w_1 \cdot S_{\text{IF}} + w_2 \cdot C_{\text{SCC}} + w_3 \cdot B_{\text{Centrality}} + w_4 \cdot X_{\text{CrossBank}} + w_5 \cdot V_{\text{Velocity}} + w_6 \cdot T_{\text{Time}}$$
-Where weights are calibrated to:
-- $w_1 = 0.30$ (Isolation Forest Anomaly Score)
-- $w_2 = 0.25$ (Tarjan SCC Cycle Detection Flag: $1$ if in cycle, $0$ otherwise)
-- $w_3 = 0.15$ (Node Betweenness Centrality)
-- $w_4 = 0.15$ (Cross-Bank Transfer Anomaly Flag)
-- $w_5 = 0.10$ (Redis Velocity Counter / Threshold Ratio)
-- $w_6 = 0.05$ (Off-Hours Time Anomaly Flag)
-
-If $R \ge 0.75$, the system flags the transaction as high risk and initiates automated micro-freezes.
+$$R = 0.30 \cdot S_{\text{IF}} + 0.25 \cdot C_{\text{SCC}} + 0.15 \cdot B_{\text{Centrality}} + 0.15 \cdot X_{\text{CrossBank}} + 0.10 \cdot V_{\text{Velocity}} + 0.05 \cdot T_{\text{Time}}$$
+Transactions with $R \ge 0.75$ trigger automatic micro-freezes.
 
 ### 5.3 Tarjan's Strongly Connected Components Algorithm
-Tarjan's algorithm finds strongly connected components in a directed graph $G = (V, E)$ in $O(|V| + |E|)$ time:
-1. Performs a Depth-First Search (DFS), assigning each node $v$ an index `dfn[v]` and low-link value `low[v]`.
-2. Maintains a stack of visited nodes.
-3. When `low[v] == dfn[v]`, node $v$ is the root of a strongly connected component, and all nodes above $v$ on the stack are popped to form the SCC cycle.
+Tarjan's algorithm finds strongly connected components in a directed graph $G = (V, E)$ in $O(|V| + |E|)$ time complexity, identifying circular money laundering rings ($A \rightarrow B \rightarrow C \dots \rightarrow A$).
 
 ---
 
-## 6. Regulatory & Compliance Framework Alignment
+## 6. Execution & Operating Guide
 
-| Regulation / Standard | Authority | VASH Architectural Implementation |
-| :--- | :--- | :--- |
-| **DPDP Act 2023** | Govt of India | Zero-PII HMAC tokenization masking raw account numbers and primary keys. |
-| **RBI AML/CFT Guidelines** | Reserve Bank of India | Sub-second velocity burst interception & automatic Suspicious Activity Report (SAR) filing. |
-| **CERT-In Cyber Rules** | Ministry of Electronics & IT | Immutable WORM audit logging (`vash_audit_worm.log`) with mandatory 6-hour incident reporting payload generation. |
-| **FinCEN Anti-Money Laundering** | US Treasury | Tarjan SCC graph ring detection pinpointing multi-hop circular laundering hubs. |
-| **FATF Recommendation 16** | Financial Action Task Force | Cross-border and cross-bank Private Set Intersection (PSI) for collaborative threat intelligence sharing. |
-
----
-
-## 7. Execution & Operating Guide
-
-### 7.1 Prerequisites
-- **Python**: 3.10+ with `pip`
-- **Node.js**: 18+ with `npm`
-- **Neo4j Desktop / Server**: Running on `bolt://localhost:7687` (Credentials: `neo4j` / `password`)
-- **Redis Server**: Running on `localhost:6379`
-
-### 7.2 Step-by-Step Execution Sequence
+### 6.1 Step-by-Step Execution Sequence
 
 1. **Seed Enterprise Threat Database & Neo4j Graph**:
    ```bash
@@ -290,8 +240,6 @@ Tarjan's algorithm finds strongly connected components in a directed graph $G = 
 2. **Start Redis Server**:
    ```bash
    redis-server
-   # OR via Docker:
-   docker run -d -p 6379:6379 redis
    ```
 
 3. **Launch Celery Background Neural Worker**:
@@ -302,24 +250,17 @@ Tarjan's algorithm finds strongly connected components in a directed graph $G = 
 4. **Launch FastAPI Ingestion Server**:
    ```bash
    python main.py
-   # API will be active at http://localhost:8000
    ```
 
 5. **Launch React 3D SOC Dashboard**:
    ```bash
    cd frontend
    npm run dev
-   # Dashboard will be active at http://localhost:5173
    ```
 
-6. **Inject Real-Time Multi-Pattern Fraud (Optional)**:
-   ```bash
-   python inject_demo_anomaly.py
-   ```
-
-### 7.3 Default Access Credentials
+### 6.2 Default Access Credentials
 - **Institution Admin ID**: `BNK-HDFC` | Password: `password123` | Role: `ADMIN`
 - **Institution Supervisor ID**: `BNK-SBI` | Password: `password123` | Role: `ADMIN`
 - **Institution Analyst ID**: `BNK-ICICI` | Password: `password123` | Role: `ANALYST`
 - **Standard Admin**: `admin` | Password: `adminpassword` | Role: `ADMIN`
-- **Standard SDK License File**: `vash_sdk.json` (located in root and `frontend/public/`)
+- **Standard SDK License File**: `vash_sdk.json`
