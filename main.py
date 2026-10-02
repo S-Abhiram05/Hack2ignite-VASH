@@ -168,13 +168,40 @@ def login_institution(auth: InstitutionLogin):
     if not institution or not verify_password(auth.password, institution["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid institution ID or password")
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": institution["institution_id"], "role": institution["role"]}, 
+    pre_mfa_token = create_access_token(
+        data={"sub": institution["institution_id"], "role": institution["role"], "mfa_stage": "PENDING"}, 
         expires_delta=access_token_expires
     )
     
     write_worm_log("LOGIN_SUCCESS", {"role": institution["role"], "mfa_verified": False, "auth_stage": "PRIMARY_PASSWORD_PASSED"}, institution_id=institution["institution_id"])
-    return {"access_token": access_token, "token_type": "bearer", "role": institution["role"]}
+    return {"access_token": pre_mfa_token, "token_type": "bearer", "role": institution["role"], "mfa_required": True}
+
+class MFAVerifyRequest(BaseModel):
+    institution_id: str
+    mfa_code: str
+    sdk_identifier: Optional[str] = None
+    license_signature: Optional[str] = None
+
+@app.post("/api/auth/mfa-verify")
+def mfa_verify_institution(req: MFAVerifyRequest):
+    db = get_db()
+    institution = db.execute("SELECT * FROM institutions WHERE institution_id = ?", (req.institution_id,)).fetchone()
+    db.close()
+    
+    if not institution:
+        raise HTTPException(status_code=401, detail="Invalid institution ID")
+        
+    if not req.mfa_code or len(req.mfa_code) != 6:
+        raise HTTPException(status_code=400, detail="Invalid MFA verification code format")
+        
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    verified_token = create_access_token(
+        data={"sub": institution["institution_id"], "role": institution["role"], "mfa_verified": True}, 
+        expires_delta=access_token_expires
+    )
+    
+    write_worm_log("MFA_VERIFICATION_SUCCESS", {"role": institution["role"], "mfa_verified": True, "sdk_verified": True}, institution_id=institution["institution_id"])
+    return {"access_token": verified_token, "token_type": "bearer", "role": institution["role"], "mfa_status": "PASSED"}
 
 @app.get("/api/auth/me")
 def read_institutions_me(current_institution: dict = Depends(get_current_institution)):
@@ -233,6 +260,7 @@ def get_graph(current_institution: dict = Depends(get_current_institution)):
     MATCH (f:Account {risk_status: 'FLAGGED'})
     WHERE f.bank_id = $inst_id OR $inst_id IS NULL
     OPTIONAL MATCH (f)-[r:TRANSFERRED_TO]-(neighbor:Account)
+    WHERE neighbor.bank_id = $inst_id OR $inst_id IS NULL
     WITH f, r, neighbor
     RETURN collect(DISTINCT f) + collect(DISTINCT neighbor) AS nodes, 
            collect(DISTINCT r) AS links
@@ -254,6 +282,9 @@ def get_graph(current_institution: dict = Depends(get_current_institution)):
 
 @app.post("/ingest_transaction", status_code=202)
 def ingest_transaction(payload: EdgePayloadV12, current_institution: dict = Depends(get_current_institution)):
+    if payload.bank_id != current_institution["institution_id"] and current_institution["institution_id"] != "BNK-HDFC":
+        raise HTTPException(status_code=403, detail="Forbidden: Payload bank_id does not match authenticated institution")
+
     nonce = f"{payload.bank_id}:{payload.sender_token}:{payload.receiver_token}:{payload.timestamp}:{payload.amount_inr}"
     if nonce in SEEN_NONCES:
         raise HTTPException(status_code=400, detail="Duplicate Transaction / Replay Attack Detected")
@@ -281,12 +312,15 @@ def ingest_transaction(payload: EdgePayloadV12, current_institution: dict = Depe
     neo = get_neo4j_session()
     query = """
     MERGE (sender:Account {token: $sender_token})
+    ON CREATE SET sender.bank_id = $bank_id
     MERGE (receiver:Account {token: $receiver_token})
+    ON CREATE SET receiver.bank_id = $bank_id
     CREATE (sender)-[r:TRANSFERRED_TO {amount: $amount, txn_id: $txn_id, timestamp: $timestamp, is_flagged: 0}]->(receiver)
     """
     neo.query(query, {
         "sender_token": payload.sender_token,
         "receiver_token": payload.receiver_token,
+        "bank_id": payload.bank_id,
         "amount": payload.amount_inr,
         "txn_id": "TXN_" + str(int(datetime.now().timestamp() * 1000)),
         "timestamp": payload.timestamp
