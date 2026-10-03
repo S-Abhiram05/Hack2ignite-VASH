@@ -16,7 +16,8 @@ import {
   AlertTriangle,
   RotateCcw,
   CheckCircle2,
-  FileText
+  FileText,
+  CreditCard
 } from "lucide-react";
 
 export const PresentationEnvironment: React.FC = () => {
@@ -29,7 +30,8 @@ export const PresentationEnvironment: React.FC = () => {
     setSelectedDemoTxId,
     executeManualAudit,
     dispatchOperationalReport,
-    dispatchRegulatoryReport
+    dispatchRegulatoryReport,
+    triggerAtmSkimming
   } = useStore();
 
   // Find selected transaction or pick first flagged/high-risk transaction
@@ -43,6 +45,7 @@ export const PresentationEnvironment: React.FC = () => {
     { num: 4, title: "4. Cryptographic Parameter Inspection", icon: Lock },
     { num: 5, title: "5. Immutable WORM Audit Entry", icon: FileCheck },
     { num: 6, title: "6. Dual-Channel Reporting Dispatch", icon: Send },
+    { num: 7, title: "7. ATM Skimming & ISO 8583 Interception", icon: CreditCard },
   ];
 
   if (!activeTx) {
@@ -355,6 +358,56 @@ INSERT INTO quarantine.suspended_ledgers (
               </div>
             </motion.div>
           )}
+
+          {/* STEP 7: ATM CARD CLONING & ISO 8583 SKIMMING INTERCEPTION */}
+          {presentationStep === 7 && (
+            <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="step-panel">
+              <div className="panel-section-title">
+                <CreditCard size={16} />
+                <span>STEP 7: ATM CARD CLONING & MID-TRANSACTION SKIMMING INTERCEPTION (ISO 8583 PROTOCOL)</span>
+              </div>
+
+              <div className="details-grid-2">
+                {/* Simulated ATM Terminal Panel */}
+                <div className="info-box border-red">
+                  <h4>MID-TRANSACTION ATM TELEMETRY & RISK SCORING</h4>
+                  <div className="field-row"><span>ATM TERMINAL ID:</span> <strong className="font-mono">ATM-MUM-4001 (Mumbai South Hub)</strong></div>
+                  <div className="field-row"><span>CARD TOKEN:</span> <strong className="font-mono">card_emv_clone_9901</strong></div>
+                  <div className="field-row"><span>ENTRY MODE:</span> <span className="error-badge">MODE 90 (MAGSTRIPE FALLBACK ON EMV CHIP)</span></div>
+                  <div className="field-row"><span>APPLICATION TX COUNTER (ATC):</span> <span className="error-badge">12 (SEQUENCE REGRESSION ANOMALY &le; 100)</span></div>
+                  <div className="field-row"><span>WITHDRAWAL AMOUNT:</span> <strong>₹25,000 (HIGH RISK THRESHOLD)</strong></div>
+                  <div className="field-row"><span>COMPOSITE RISK INDEX:</span> <strong className="color-error">0.9175 (&ge; 0.75 THRESHOLD BREACH)</strong></div>
+                </div>
+
+                {/* ISO 8583 Real-Time Response & Halt Mechanism */}
+                <div className="info-box border-orange">
+                  <h4>ISO 8583 GATEWAY RESPONSE & CASH DISPENSE HALT</h4>
+                  <div className="reason-highlight-box">
+                    <AlertTriangle size={18} className="warn-icon" />
+                    <div>
+                      <div className="flag-type-title">ISO RESPONSE CODE 63: SECURITY VIOLATION</div>
+                      <p className="flag-reason-text">
+                        Mid-transaction interception triggered synchronously. Cash dispense halted mid-stream prior to vault release.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="field-row"><span>SHAP ATTRIBUTION (MAGSTRIPE FALLBACK '90'):</span> <strong className="color-error">+0.4275 (46.6%)</strong></div>
+                  <div className="field-row"><span>SHAP ATTRIBUTION (ATC REGRESSION):</span> <strong className="color-error">+0.3150 (34.3%)</strong></div>
+                  <div className="field-row"><span>WORM AUDIT ACTION:</span> <span className="success-badge">ATM_SKIMMING_INTERCEPTED</span></div>
+
+                  <div style={{ marginTop: "12px", display: "flex", gap: "10px" }}>
+                    <button
+                      className="action-btn btn-red"
+                      onClick={() => triggerAtmSkimming()}
+                    >
+                      <CreditCard size={12} /> Simulate Cloned Card ATM Attempt (ISO 63)
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         {/* MANUAL AUDIT CONTROL ACTIONS BAR */}
@@ -413,11 +466,11 @@ INSERT INTO quarantine.suspended_ledgers (
           </button>
 
           <span className="step-indicator font-bold">
-            STEP {presentationStep} OF 6
+            STEP {presentationStep} OF 7
           </span>
 
           <button
-            disabled={presentationStep === 6}
+            disabled={presentationStep === 7}
             onClick={() => setPresentationStep(presentationStep + 1)}
             className="nav-btn btn-highlight"
           >
