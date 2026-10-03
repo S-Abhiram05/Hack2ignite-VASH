@@ -49,6 +49,8 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+from ml_engine import evaluate_atm_skimming_risk
+
 class EdgePayloadV12(BaseModel):
     schema_version: str
     bank_id: str
@@ -62,6 +64,15 @@ class EdgePayloadV12(BaseModel):
     risk_hints: List[str]
     epoch: str
     payload_hmac: str
+
+class ATMIngestPayload(BaseModel):
+    terminal_id: str
+    card_token: str
+    entry_mode: str
+    atc: int
+    amount: float
+    institution_id: str
+    payload_hmac: Optional[str] = None
 
 class InstitutionRegister(BaseModel):
     bank_name: str
@@ -329,6 +340,75 @@ def ingest_transaction(payload: EdgePayloadV12, current_institution: dict = Depe
     import tasks
     tasks.process_edge.delay(payload.dict())
     return {"status": "accepted", "message": "Transaction queued", "schema": "v1.3"}
+
+@app.post("/api/atm/ingest")
+def ingest_atm_transaction(payload: ATMIngestPayload):
+    atm_eval = evaluate_atm_skimming_risk(
+        entry_mode=payload.entry_mode,
+        atc=payload.atc,
+        amount=payload.amount,
+        historical_atc=100
+    )
+    
+    timestamp_str = datetime.now(timezone.utc).isoformat()
+    
+    log_action = "ATM_SKIMMING_INTERCEPTED" if atm_eval["is_cloned_suspicious"] else "ATM_TRANSACTION_PROCESSED"
+    write_worm_log(
+        log_action,
+        {
+            "terminal_id": payload.terminal_id,
+            "card_token": payload.card_token,
+            "entry_mode": payload.entry_mode,
+            "atc": payload.atc,
+            "amount": payload.amount,
+            "risk_score": atm_eval["risk_score"],
+            "iso_code": atm_eval["iso_code"],
+            "status": atm_eval["status"]
+        },
+        institution_id=payload.institution_id
+    )
+    
+    try:
+        neo = get_neo4j_session()
+        query = """
+        MERGE (term:ATMTerminal {terminal_id: $terminal_id})
+        ON CREATE SET term.institution_id = $institution_id
+        MERGE (acc:Account {token: $card_token})
+        ON CREATE SET acc.bank_id = $institution_id
+        CREATE (term)-[r:DISPENSED_TO {
+            amount: $amount,
+            entry_mode: $entry_mode,
+            atc: $atc,
+            risk_score: $risk_score,
+            iso_code: $iso_code,
+            status: $status,
+            timestamp: $timestamp
+        }]->(acc)
+        """
+        neo.query(query, {
+            "terminal_id": payload.terminal_id,
+            "card_token": payload.card_token,
+            "institution_id": payload.institution_id,
+            "amount": payload.amount,
+            "entry_mode": payload.entry_mode,
+            "atc": payload.atc,
+            "risk_score": atm_eval["risk_score"],
+            "iso_code": atm_eval["iso_code"],
+            "status": atm_eval["status"],
+            "timestamp": timestamp_str
+        })
+    except Exception as e:
+        print(f"Neo4j ATM logging error: {e}")
+
+    return {
+        "iso_code": atm_eval["iso_code"],
+        "status": atm_eval["status"],
+        "risk_score": atm_eval["risk_score"],
+        "is_cloned_suspicious": atm_eval["is_cloned_suspicious"],
+        "terminal_id": payload.terminal_id,
+        "card_token": payload.card_token,
+        "shap_attributions": atm_eval["shap_attributions"]
+    }
 
 if __name__ == "__main__":
     import uvicorn

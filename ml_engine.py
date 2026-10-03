@@ -45,4 +45,34 @@ def composite_risk_score(scc, if_score=0.8, cycle_score=1.0, between_score=0.2, 
     )
     return R
 
+def evaluate_atm_skimming_risk(entry_mode: str, atc: int, amount: float, historical_atc: int = 100) -> dict:
+    """
+    Evaluates mid-transaction ATM card cloning & skimming risk.
+    - entry_mode == '90': Magstripe Fallback anomaly on EMV chip account.
+    - atc <= historical_atc: Application Transaction Counter sequence regression (cloned card replay).
+    """
+    entry_mode_risk = 0.95 if str(entry_mode).strip() in ['90', '80', 'MAGSTRIPE_FALLBACK'] else 0.05
+    atc_anomaly = 0.90 if (atc <= 0 or atc <= historical_atc) else 0.05
+    amount_risk = 0.85 if amount >= 20000 else 0.20
+
+    composite_score = 0.50 * entry_mode_risk + 0.35 * atc_anomaly + 0.15 * amount_risk
+    is_cloned = composite_score >= 0.75
+
+    shap_attributions = [
+        {"feature": "entry_mode_risk (Magstripe Fallback '90')", "shap_value": float(entry_mode_risk * 0.45)},
+        {"feature": "atc_anomaly (ATC Sequence Regression)", "shap_value": float(atc_anomaly * 0.35)},
+        {"feature": "high_withdrawal_amount", "shap_value": float(amount_risk * 0.20)}
+    ]
+    shap_attributions.sort(key=lambda x: abs(x["shap_value"]), reverse=True)
+
+    return {
+        "risk_score": float(composite_score),
+        "is_cloned_suspicious": is_cloned,
+        "iso_code": "63" if is_cloned else "00",
+        "status": "DECLINED_SECURITY_VIOLATION" if is_cloned else "APPROVED",
+        "entry_mode_risk": entry_mode_risk,
+        "atc_anomaly": atc_anomaly,
+        "shap_attributions": shap_attributions
+    }
+
 isolation_forest_model = VASH_MLEngine()

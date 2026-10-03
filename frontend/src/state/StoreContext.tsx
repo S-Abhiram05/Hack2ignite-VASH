@@ -390,6 +390,17 @@ export function useVashEngine() {
     await writeAudit("Simulated Quantum Key Compromise Attack triggered", "CRITICAL");
   };
 
+  const triggerAtmSkimming = async () => {
+    pushEventQueue(
+      "ATM_SKIMMING_INTERCEPTED",
+      "ATM_GATEWAY_ISO8583",
+      "card_emv_clone@atm",
+      "CRITICAL",
+      "Mid-Transaction ATM Card Skimming / Fallback '90' Intercepted (ISO Code 63)"
+    );
+    await writeAudit("ATM Card Cloning & Mid-Transaction Skimming Attempt Intercepted (ISO 63)", "CRITICAL");
+  };
+
   const executeManualAudit = async (txId: string, action: string) => {
     await writeAudit(`Manual Audit Executed on ${txId}: ${action}`, "SUCCESS", txId);
   };
@@ -442,6 +453,7 @@ export function useVashEngine() {
     triggerLiquidation,
     triggerFlood,
     triggerQuantumExploit,
+    triggerAtmSkimming,
     executeManualAudit,
     dispatchOperationalReport,
     dispatchRegulatoryReport

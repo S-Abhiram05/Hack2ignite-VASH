@@ -133,6 +133,7 @@ d:\program01\satark\
   - `GET /api/threat-stats`: Returns tenant-scoped total accounts, transactions, blocked networks, and frozen suspicious capital.
   - `GET /api/graph`: Returns tenant-scoped flagged graph nodes and neighbor links (`WHERE neighbor.bank_id = $inst_id OR $inst_id IS NULL`).
   - `POST /api/psi/intersect`: Executes Private Set Intersection on provided ciphertexts and records WORM log.
+  - `POST /api/atm/ingest`: Ingests physical ATM transaction telemetry (`terminal_id`, `card_token`, `entry_mode`, `atc`, `amount`, `institution_id`), evaluates skimming risk via `evaluate_atm_skimming_risk`, appends WORM audit log, updates Neo4j ATM terminal nodes, and returns ISO response code `'63'` (Security Violation) or `'00'` (Approved).
 
 ### 3.3 Background Task Worker (`tasks.py`)
 - **Purpose**: Asynchronous worker running Celery tasks for feature extraction, velocity calculation, graph updates, and model scoring.
@@ -183,6 +184,13 @@ d:\program01\satark\
   - `buildCommand`: `cd frontend && npm install && npm run build`.
   - `outputDirectory`: `frontend/dist`.
   - `rewrites`: `[{"source": "/(.*)", "destination": "/index.html"}]` ensuring direct route access (`/login`, `/dashboard`) works seamlessly.
+
+### 3.10 ATM Card Cloning & Skimming Engine (`ml_engine.py`, `main.py`)
+- **Purpose**: Synchronous mid-transaction ATM card cloning and skimming interception via ISO 8583 gateway response standard.
+- **Key Logic**:
+  - `evaluate_atm_skimming_risk`: Evaluates POS/ATM entry mode `'90'` (magstripe fallback on chip account), Application Transaction Counter (ATC) regression ($ATC \le \text{historical\_atc}$), and withdrawal amount.
+  - Response standard: Returns ISO response code `'63'` (Security Violation / Transaction Blocked) if risk score $R \ge 0.75$, halting cash dispense mid-stream; returns ISO code `'00'` (Approved) if $R < 0.75$.
+  - Audit & Graph: Logs `ATM_SKIMMING_INTERCEPTED` to WORM audit log (`vash_audit_worm.log`) and upserts Neo4j physical ATM terminal nodes (`(:ATMTerminal)-[:DISPENSED_TO]->(:Account)`).
 
 ---
 

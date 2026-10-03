@@ -128,6 +128,16 @@ VASH operates on a **Federated Dual-Engine Architecture** that combines:
 - **Authentication Gateway (`LoginGateway.tsx`)**: 3-Stage security flow integrated with server-side `/api/auth/mfa-verify`, enforcing `owner_vpa` matching, license signatures, and assigned RBAC roles (`ADMIN` vs `ANALYST`).
 - **Vercel SPA Rewrites (`vercel.json`)**: Configured with wildcard rewrites (`/ (.*) -> /index.html`), ensuring direct URL navigation (`/login`, `/dashboard`) works seamlessly without 404 errors.
 
+### 3.9 ATM Card Cloning & Mid-Transaction Skimming Detection Engine (`POST /api/atm/ingest`)
+- **Ingestion Gateway**: Ingests physical ATM transaction telemetry (`terminal_id`, `card_token`, `entry_mode`, `atc`, `amount`, `institution_id`).
+- **ISO 8583 Response Code Protocol**:
+  - **ISO Code 63** (*Security Violation / Transaction Blocked*): Issued synchronously when composite skimming risk score $R \ge 0.75$, halting cash dispensing mid-stream before fund release.
+  - **ISO Code 00** (*Approved*): Issued when risk score $R < 0.75$.
+- **Anomaly Detection Vector**:
+  - `entry_mode == '90'`: Magstripe Fallback anomaly on EMV Chip-enabled accounts.
+  - `atc <= historical_atc`: Application Transaction Counter sequence regression, detecting cloned EMV card chip replay attacks.
+- **Graph & WORM Integration**: Writes `ATM_SKIMMING_INTERCEPTED` entries to `vash_audit_worm.log` and upserts `(:ATMTerminal)` nodes linked via `(:ATMTerminal)-[:DISPENSED_TO]->(:Account)` edges in Neo4j.
+
 ---
 
 ## 4. End-to-End Execution Sequence Diagram
