@@ -8,6 +8,7 @@ export const Footer: React.FC = () => {
     triggerLiquidation, 
     triggerFlood, 
     triggerQuantumExploit,
+    triggerAtmSkimming,
     role
   } = useStore();
 
@@ -27,6 +28,9 @@ export const Footer: React.FC = () => {
         } else if (e.key === "4") {
           e.preventDefault();
           triggerQuantumExploit();
+        } else if (e.key === "5") {
+          e.preventDefault();
+          triggerAtmSkimming();
         }
       }
     };
@@ -57,6 +61,11 @@ export const Footer: React.FC = () => {
         <button onClick={triggerQuantumExploit} className="shortcut-btn quantum-btn">
           <AlertTriangle size={12} />
           <span>[Ctrl+4] QKD Coherence Anomaly</span>
+        </button>
+
+        <button onClick={triggerAtmSkimming} className="shortcut-btn danger-btn">
+          <AlertTriangle size={12} />
+          <span>[Ctrl+5] ATM Skimming (ISO 63)</span>
         </button>
       </div>
 
