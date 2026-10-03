@@ -1,6 +1,6 @@
 # VASH System Architecture & Technical Specification
 
-> **System Name**: VASH — *Adaptive Variable-Resolution 2.5D LiDAR & Financial Graph Threat Intelligence Engine*  
+> **System Name**: VASH — *Autonomous Real-Time Financial Graph Threat Intelligence & Transaction Control Engine*  
 > **Repository**: [Hack2ignite-VASH](https://github.com/S-Abhiram05/Hack2ignite-VASH)  
 > **Authors**: Vineet · Abhiram · Sakshi · Himanshu  
 > **Document Status**: Production Architecture Specification  

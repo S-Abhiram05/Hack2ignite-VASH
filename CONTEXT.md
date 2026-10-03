@@ -1,6 +1,6 @@
 # VASH Comprehensive Project Context & Master Reference
 
-> **Project Name**: VASH — *Adaptive Variable-Resolution 2.5D LiDAR & Financial Graph Threat Intelligence Engine*  
+> **Project Name**: VASH — *Autonomous Real-Time Financial Graph Threat Intelligence & Transaction Control Engine*  
 > **Repository**: [Hack2ignite-VASH](https://github.com/S-Abhiram05/Hack2ignite-VASH)  
 > **Secondary Remote**: [VASH](https://github.com/himanshu-anonymous/VASH)  
 > **Creators**: Vineet (Database Architecture) · Abhiram (Frontend & 3D UI) · Sakshi (Motion Design) · Himanshu (System Architecture & ML Engines)  
