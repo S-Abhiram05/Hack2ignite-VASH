@@ -246,36 +246,46 @@ export const TelemetryTab: React.FC<TelemetryTabProps> = ({ activeRail }) => {
 
                   {/* Manual Audit Action Buttons */}
                   <td className="actions-cell">
-                    {rec.flagged || rec.risk >= 0.5 ? (
-                      <div className="inline-audit-group">
-                        <button
-                          title="Quarantine Account"
-                          onClick={() => executeManualAudit(rec.id, "QUARANTINE")}
-                          className="mini-audit-btn btn-quarantine"
-                        >
-                          <Lock size={10} />
-                        </button>
-                        <button
-                          title="Revoke Session Keys"
-                          onClick={() => executeManualAudit(rec.id, "REVOKE_SESSION")}
-                          className="mini-audit-btn btn-revoke"
-                        >
-                          <Key size={10} />
-                        </button>
-                        <button
-                          title="Execute DB Rollback"
-                          onClick={() => executeManualAudit(rec.id, "ROLLBACK_DB")}
-                          className="mini-audit-btn btn-rollback"
-                        >
-                          <RotateCcw size={10} />
-                        </button>
-                        <button
-                          title="Override & Approve"
-                          onClick={() => executeManualAudit(rec.id, "OVERRIDE")}
-                          className="mini-audit-btn btn-approve"
-                        >
-                          <CheckCircle2 size={10} />
-                        </button>
+                    {rec.flagged || rec.risk >= 0.5 || (rec.manualAuditStatus && rec.manualAuditStatus !== "PENDING") ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", alignItems: "flex-end" }}>
+                        {rec.manualAuditStatus && rec.manualAuditStatus !== "PENDING" && (
+                          <span style={{ fontSize: "9px", padding: "1px 5px", borderRadius: "3px", fontWeight: "bold", textTransform: "uppercase" }} className={
+                            rec.manualAuditStatus === "OVERRIDDEN" ? "color-success" :
+                            rec.manualAuditStatus === "QUARANTINED" ? "color-error" : "color-warning"
+                          }>
+                            {rec.manualAuditStatus}
+                          </span>
+                        )}
+                        <div className="inline-audit-group">
+                          <button
+                            title="Quarantine Account"
+                            onClick={() => executeManualAudit(rec.id, "QUARANTINE")}
+                            className={`mini-audit-btn btn-quarantine ${rec.manualAuditStatus === "QUARANTINED" ? "active" : ""}`}
+                          >
+                            <Lock size={10} />
+                          </button>
+                          <button
+                            title="Revoke Session Keys"
+                            onClick={() => executeManualAudit(rec.id, "REVOKE_SESSION")}
+                            className={`mini-audit-btn btn-revoke ${rec.manualAuditStatus === "SESSION_REVOKED" ? "active" : ""}`}
+                          >
+                            <Key size={10} />
+                          </button>
+                          <button
+                            title="Execute DB Rollback"
+                            onClick={() => executeManualAudit(rec.id, "ROLLBACK_DB")}
+                            className={`mini-audit-btn btn-rollback ${rec.manualAuditStatus === "ROLLED_BACK" ? "active" : ""}`}
+                          >
+                            <RotateCcw size={10} />
+                          </button>
+                          <button
+                            title="Override & Approve"
+                            onClick={() => executeManualAudit(rec.id, "OVERRIDE")}
+                            className={`mini-audit-btn btn-approve ${rec.manualAuditStatus === "OVERRIDDEN" ? "active" : ""}`}
+                          >
+                            <CheckCircle2 size={10} />
+                          </button>
+                        </div>
                       </div>
                     ) : (
                       <span className="clear-tag">CLEAR</span>

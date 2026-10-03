@@ -74,6 +74,11 @@ class ATMIngestPayload(BaseModel):
     institution_id: str
     payload_hmac: Optional[str] = None
 
+class AuditActionPayload(BaseModel):
+    tx_id: str
+    action: str
+    notes: Optional[str] = None
+
 class InstitutionRegister(BaseModel):
     bank_name: str
     institution_id: str
@@ -409,6 +414,38 @@ def ingest_atm_transaction(payload: ATMIngestPayload):
         "card_token": payload.card_token,
         "shap_attributions": atm_eval["shap_attributions"]
     }
+
+@app.post("/api/audit/action")
+def execute_manual_audit_action(payload: AuditActionPayload, current_institution: dict = Depends(get_current_institution)):
+    log_action = f"MANUAL_AUDIT_{payload.action}"
+    write_worm_log(
+        log_action,
+        {
+            "tx_id": payload.tx_id,
+            "action": payload.action,
+            "notes": payload.notes or "Manual Audit Executed by SOC Analyst"
+        },
+        institution_id=current_institution["institution_id"]
+    )
+    
+    try:
+        neo = get_neo4j_session()
+        if payload.action == "QUARANTINE":
+            query = """
+            MATCH (s:Account)-[r:TRANSFERRED_TO {txn_id: $tx_id}]->(t:Account)
+            SET s.risk_status = 'FLAGGED', t.risk_status = 'ELEVATED'
+            """
+            neo.query(query, {"tx_id": payload.tx_id})
+        elif payload.action in ["OVERRIDE", "APPROVE"]:
+            query = """
+            MATCH (s:Account)-[r:TRANSFERRED_TO {txn_id: $tx_id}]->(t:Account)
+            SET s.risk_status = 'CLEAN', r.is_flagged = 0
+            """
+            neo.query(query, {"tx_id": payload.tx_id})
+    except Exception as e:
+        print(f"Neo4j manual audit update error: {e}")
+
+    return {"status": "success", "tx_id": payload.tx_id, "action": payload.action, "audit_logged": True}
 
 if __name__ == "__main__":
     import uvicorn

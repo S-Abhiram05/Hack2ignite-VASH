@@ -402,7 +402,71 @@ export function useVashEngine() {
   };
 
   const executeManualAudit = async (txId: string, action: string) => {
-    await writeAudit(`Manual Audit Executed on ${txId}: ${action}`, "SUCCESS", txId);
+    // 1. Write Immutable WORM Audit Log
+    await writeAudit(`Manual Audit Action '${action}' Executed on ${txId}`, "SUCCESS", txId);
+
+    // 2. Update Transaction Records State & Audit History
+    setRecords(prev => prev.map(rec => {
+      if (rec.id !== txId) return rec;
+
+      const actionTimestamp = new Date().toLocaleTimeString();
+      const updatedLog = [...(rec.manualAuditActionLog || []), `${actionTimestamp} - ${action}`];
+
+      let newStatus: TxRecord["manualAuditStatus"] = rec.manualAuditStatus;
+      let newEscrow = rec.escrow;
+      let newFlagged = rec.flagged;
+      let newRisk = rec.risk;
+      let newAuthDetails = { ...rec.authDetails };
+      let newDbStatus = { ...rec.dbStatus };
+
+      if (action === "QUARANTINE") {
+        newStatus = "QUARANTINED";
+        newEscrow = "AUTO_FROZEN";
+        newFlagged = true;
+        newRisk = Math.max(rec.risk, 0.85);
+        newAuthDetails.authDecision = "QUARANTINE";
+      } else if (action === "REVOKE_SESSION" || action === "REVOKE") {
+        newStatus = "SESSION_REVOKED";
+        newAuthDetails.tokenStatus = "REVOKED";
+        newAuthDetails.authDecision = "BLOCK";
+      } else if (action === "FILE_SAR") {
+        newStatus = "SAR_FILED";
+      } else if (action === "ROLLBACK_DB" || action === "ROLLBACK") {
+        newStatus = "ROLLED_BACK";
+        newDbStatus.tableState = "PENDING_ROLLBACK";
+        newDbStatus.rollbackTriggered = true;
+        newEscrow = "CLEAR";
+        newFlagged = false;
+      } else if (action === "OVERRIDE" || action === "APPROVE") {
+        newStatus = "OVERRIDDEN";
+        newFlagged = false;
+        newEscrow = "CLEAR";
+        newRisk = 0.05;
+        newAuthDetails.authDecision = "ALLOW";
+        newAuthDetails.tokenStatus = "VALID";
+      }
+
+      return {
+        ...rec,
+        manualAuditStatus: newStatus,
+        escrow: newEscrow,
+        flagged: newFlagged,
+        risk: newRisk,
+        authDetails: newAuthDetails,
+        dbStatus: newDbStatus,
+        manualAuditActionLog: updatedLog
+      };
+    }));
+
+    // 3. Dispatch Live Threat & Event Queue Notification
+    pushEventQueue(
+      `MANUAL_AUDIT_${action}`,
+      "SOC_ANALYST_GATEWAY",
+      txId,
+      action === "OVERRIDE" ? "LOW" : "HIGH",
+      `Manual Audit action '${action}' executed on ${txId}`,
+      txId
+    );
   };
 
   const dispatchOperationalReport = async (_target?: string) => {

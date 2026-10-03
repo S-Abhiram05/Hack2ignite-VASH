@@ -419,38 +419,38 @@ INSERT INTO quarantine.suspended_ledgers (
 
           <div className="actions-group">
             <button
-              className="audit-act-btn btn-quarantine"
+              className={`audit-act-btn btn-quarantine ${activeTx.manualAuditStatus === "QUARANTINED" ? "active-audit-btn" : ""}`}
               onClick={() => executeManualAudit(activeTx.id, "QUARANTINE")}
             >
-              <Lock size={12} /> Quarantine Account
+              <Lock size={12} /> {activeTx.manualAuditStatus === "QUARANTINED" ? "✓ Account Quarantined" : "Quarantine Account"}
             </button>
 
             <button
-              className="audit-act-btn btn-revoke"
+              className={`audit-act-btn btn-revoke ${activeTx.manualAuditStatus === "SESSION_REVOKED" ? "active-audit-btn" : ""}`}
               onClick={() => executeManualAudit(activeTx.id, "REVOKE_SESSION")}
             >
-              <Key size={12} /> Revoke HMAC Keys
+              <Key size={12} /> {activeTx.manualAuditStatus === "SESSION_REVOKED" ? "✓ Session Keys Revoked" : "Revoke HMAC Keys"}
             </button>
 
             <button
-              className="audit-act-btn btn-sar"
+              className={`audit-act-btn btn-sar ${activeTx.manualAuditStatus === "SAR_FILED" ? "active-audit-btn" : ""}`}
               onClick={() => executeManualAudit(activeTx.id, "FILE_SAR")}
             >
-              <Send size={12} /> File Regulatory SAR
+              <Send size={12} /> {activeTx.manualAuditStatus === "SAR_FILED" ? "✓ Regulatory SAR Filed" : "File Regulatory SAR"}
             </button>
 
             <button
-              className="audit-act-btn btn-rollback"
+              className={`audit-act-btn btn-rollback ${activeTx.manualAuditStatus === "ROLLED_BACK" ? "active-audit-btn" : ""}`}
               onClick={() => executeManualAudit(activeTx.id, "ROLLBACK_DB")}
             >
-              <RotateCcw size={12} /> Execute DB Rollback
+              <RotateCcw size={12} /> {activeTx.manualAuditStatus === "ROLLED_BACK" ? "✓ DB Rolled Back" : "Execute DB Rollback"}
             </button>
 
             <button
-              className="audit-act-btn btn-approve"
+              className={`audit-act-btn btn-approve ${activeTx.manualAuditStatus === "OVERRIDDEN" ? "active-audit-btn" : ""}`}
               onClick={() => executeManualAudit(activeTx.id, "OVERRIDE")}
             >
-              <CheckCircle2 size={12} /> Override & Approve
+              <CheckCircle2 size={12} /> {activeTx.manualAuditStatus === "OVERRIDDEN" ? "✓ Approved & Overridden" : "Override & Approve"}
             </button>
           </div>
         </div>
